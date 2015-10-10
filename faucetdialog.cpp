@@ -51,6 +51,12 @@ void FaucetDialog::replyReceived(QNetworkReply* reply) {
 void FaucetDialog::on_buttonBox_accepted() {
     QString captchaResponse = ui->webView->page()->mainFrame()->evaluateJavaScript("grecaptcha.getResponse()").toString();
     //qDebug() << captchaResponse;
+    if(captchaResponse == "") {
+        QMessageBox msgBox;
+        msgBox.setText("No response from the ReCaptcha service.");
+        msgBox.exec();
+        return;
+    }
 
     MainWindow* win = (MainWindow*)topLevelWidget()->parentWidget()->topLevelWidget();
     ProfileWidget* profileWidget = (ProfileWidget*)parentWidget();
@@ -62,12 +68,14 @@ void FaucetDialog::on_buttonBox_accepted() {
     QJsonDocument jsonRes = QJsonDocument::fromJson(res.toLocal8Bit());
     QJsonObject jsonObj = jsonRes.object();
     double balance = floor(jsonObj["balance"].toString().toDouble());
-    if(balance > 1.0)
+    if(balance > 1.0) {
         profileWidget->GetUi()->balanceLine->setText(QString::number(balance/1e8, 'f', 8));
-    else {
-        qDebug() << "captcha err " << balance << res;
+        destroy();
+    } else {
+        QMessageBox msgBox;
+        msgBox.setText(res);
+        msgBox.exec();
     }
-    destroy();
 }
 
 void FaucetDialog::on_buttonBox_rejected() {

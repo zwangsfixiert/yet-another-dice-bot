@@ -129,10 +129,24 @@ ProfileWidget::~ProfileWidget() {
 }
 
 void ProfileWidget::on_faucetPushButton_clicked() {
-    FaucetDialog* faucet = new FaucetDialog(this);
-    faucet->show();
-}
+    MainWindow* win = (MainWindow*)topLevelWidget();
+    Profile* profile = win->GetProfileManager().GetProfile(profile_username);
 
+    QString userinfores = win->GetRestAPI().GetOwnUserInfo(*profile);
+    QJsonDocument jsonRes = QJsonDocument::fromJson(userinfores.toLocal8Bit());
+    QJsonObject jsonObj = jsonRes.object();
+    QJsonObject userObj = jsonObj["user"].toObject();
+    double balance = floor(userObj["balance"].toDouble());
+
+    if(balance < 1) {
+        FaucetDialog* faucet = new FaucetDialog(this);
+        faucet->show();
+    } else {
+        QMessageBox msgBox;
+        msgBox.setText("Your balance must be 0 to use the faucet.");
+        msgBox.exec();
+    }
+}
 
 void ProfileWidget::on_updateButton_clicked() {
     MainWindow* win = (MainWindow*)topLevelWidget();
@@ -142,6 +156,13 @@ void ProfileWidget::on_updateButton_clicked() {
     win->WriteSettings();
 }
 
+void ProfileWidget::UpdateProfit() {
+    ui->profitLine->setText(QString::number(ui->wagerLine->text().toDouble() *
+                                            ui->payoutLine->text().toDouble() -
+                                            ui->wagerLine->text().toDouble(),
+                                            'f', 8));
+}
+
 void ProfileWidget::on_wagerLine_editingFinished() {
     qDebug() << "wager line edited" << ui->wagerLine->text().toDouble() << " "
              << ui->payoutLine->text().toDouble();
@@ -149,10 +170,7 @@ void ProfileWidget::on_wagerLine_editingFinished() {
     ui->wagerLine->setText(QString::number(ui->wagerLine->text().toDouble(),
                                            'f', 8));
 
-    ui->profitLine->setText(QString::number(ui->wagerLine->text().toDouble() *
-                                            ui->payoutLine->text().toDouble() -
-                                            ui->wagerLine->text().toDouble(),
-                                            'f', 8));
+    UpdateProfit();
 }
 
 void ProfileWidget::on_winChanceDoubleSpinBox_valueChanged(double arg1)
@@ -167,6 +185,8 @@ void ProfileWidget::on_winChanceDoubleSpinBox_valueChanged(double arg1)
 
      ui->payoutLine->setText(QString::number(getpayout(arg1, 1.0), 'f', 5));
      ui->targetDoubleSpinBox->setValue(target);
+
+     UpdateProfit();
 }
 
 void ProfileWidget::on_highorlowComboBox_currentIndexChanged(int index)
@@ -234,11 +254,13 @@ void ProfileWidget::on_rollPushButton_clicked()
 void ProfileWidget::on_minPushButton_clicked()
 {
     ui->wagerLine->setText(QString::number(0.00000001, 'f', 8));
+    UpdateProfit();
 }
 
 void ProfileWidget::on_maxPushButton_clicked()
 {
     ui->wagerLine->setText(ui->balanceLine->text());
+    UpdateProfit();
 }
 
 void ProfileWidget::on_halfBetPushButton_clicked()
@@ -247,6 +269,7 @@ void ProfileWidget::on_halfBetPushButton_clicked()
     if(currWagerSats >= 1.0) {
         currWagerSats = floor(currWagerSats/2.0) / 1e8;
         ui->wagerLine->setText(QString::number(currWagerSats, 'f', 8));
+        UpdateProfit();
     }
 }
 
@@ -256,6 +279,7 @@ void ProfileWidget::on_doubleBetPushButton_clicked()
     if(currWagerSats >= 1.0) {
         currWagerSats = round(currWagerSats*2.0) / 1e8;
         ui->wagerLine->setText(QString::number(currWagerSats, 'f', 8));
+        UpdateProfit();
     }
     if(currWagerSats > floor(ui->balanceLine->text().toDouble()*1e8)) {
         ui->wagerLine->setToolTip("Insufficient balance");

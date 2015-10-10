@@ -17,6 +17,7 @@ public:
     explicit ProfileWidget(QString username, QWidget *parent = 0);
     ~ProfileWidget();
 
+    void UpdateProfit();
     SocketIO& GetSio() { return socketIO; }
     QString GetUsername() { return profile_username; }
     Ui::ProfileWidget* GetUi() { return ui; }

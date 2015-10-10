@@ -42,11 +42,13 @@ QString RestAPI::RequestHandler(QNetworkRequest& request, QNetworkReply& reply) 
 
     eventLoop.exec(); // block stack FIXME be async
     if (reply.error() == QNetworkReply::NoError) {
+        /*
         qDebug() << "Response headers";
         const QList<QByteArray>& rawHeaderListResp(reply.rawHeaderList());
          foreach (QByteArray rawHeader, rawHeaderListResp) {
            qDebug() << reply.rawHeader(rawHeader);
          }
+         */
     } else {
         const QList<QByteArray>& rawHeaderList(reply.request().rawHeaderList());
          foreach (QByteArray rawHeader, rawHeaderList) {
@@ -110,7 +112,6 @@ QString RestAPI::Faucet(Profile& profile, QString response) {
         return Post(restAPIurl + QString("/faucet/?access_token=" + profile.accesstoken), data);
     }
 
-    qDebug() << "no captcha response";
     return "";
 }
 
