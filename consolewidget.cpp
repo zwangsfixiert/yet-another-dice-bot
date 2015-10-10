@@ -40,7 +40,11 @@ void ConsoleWidget::on_consoleInput_returnPressed() {
         qDebug() << target << amount << (int64_t)(amount*1e8);
         if(amount >= 0.00050001 && amount <= profilewidget->GetUi()->balanceLine->text().toDouble()) {
             QString tipres = win->GetRestAPI().TipUser(*profile, target, (int64_t)(round(amount*1e8)));
-            qDebug() << "tip res" << tipres;
+            QJsonDocument jsonRes = QJsonDocument::fromJson(tipres.toLocal8Bit());
+            QJsonObject jsonObj = jsonRes.object();
+            QJsonObject userObj = jsonObj["user"].toObject();
+            double balance = floor(userObj["balance"].toDouble())/1e8;
+            profilewidget->GetUi()->balanceLine->setText(QString::number(balance, 'f', 8));
         }
         ui->consoleInput->setText("");
         return;
