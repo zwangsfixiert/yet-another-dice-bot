@@ -93,23 +93,39 @@ ProfileWidget::ProfileWidget(QString username, QWidget *parent) :
         ui->consoleTab->addTab(chat, "Chat");
 
         socketIO.GetSio().socket()->on("pm", sio::socket::event_listener_aux(
-            [chat] (std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp) {
+            [chat, this] (std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp) {
                 std::string user = data->get_map()["username"]->get_string();
+                std::string touser = data->get_map()["toUsername"]->get_string();
                 std::string message = data->get_map()["message"]->get_string();
-                message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
-                QString chatentry('<' + QString(user.c_str()) + "> " + QString(message.c_str()));
+                qDebug() << "user " << user.c_str() << " touser " << touser.c_str() << " msg " << message.c_str();
+
+                QString chatentry;
+                // TODO support multiple msg tabs or a single profile global message tabs
+                if(user == profile_username.toStdString()) {
+                    message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
+                    chatentry = "Msg to <" + QString(touser.c_str()) + "> " + QString(message.c_str());
+                } else {
+                    message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
+                    chatentry = "Msg from <" + QString(user.c_str()) + "> " + QString(message.c_str());
+                }
                 chat->GetUi()->consoleOutput->moveCursor(QTextCursor::End);
                 chat->GetUi()->consoleOutput->append(chatentry);
+
         }));
 
         socketIO.GetSio().socket()->on("msg", sio::socket::event_listener_aux(
             [chat] (std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp) {
                 std::string user = data->get_map()["username"]->get_string();
                 std::string message = data->get_map()["message"]->get_string();
-                message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
-                QString chatentry('<' + QString(user.c_str()) + "> " + QString(message.c_str()));
-                chat->GetUi()->consoleOutput->moveCursor(QTextCursor::End);
-                chat->GetUi()->consoleOutput->append(chatentry);
+                std::string room = data->get_map()["room"]->get_string();
+
+                // TODO support multiple room tabs
+                if(room == "English") {
+                    message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
+                    QString chatentry('<' + QString(user.c_str()) + "> " + QString(message.c_str()));
+                    chat->GetUi()->consoleOutput->moveCursor(QTextCursor::End);
+                    chat->GetUi()->consoleOutput->append(chatentry);
+                }
         }));
     }
 
