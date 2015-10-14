@@ -52,13 +52,16 @@ public:
         return !found;
     }
 
-    void RemoveProfile(QString username) {
+    bool RemoveProfile(QString username) {
         QMutableListIterator<Profile> it(profiles);
         while (it.hasNext()) {
             if (it.next().username == username) {
                 it.remove();
+                return true;
             }
         }
+
+        return false;
     }
 
     QList<Profile>& GetProfiles()

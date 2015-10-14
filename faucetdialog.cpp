@@ -34,6 +34,7 @@ FaucetDialog::FaucetDialog(QWidget *parent) :
     ui->webView->setHtml(recaptcha, QUrl("https://primedice.com/"));
 
     ui->webView->show();
+    ui->webView->page()->action(QWebPage::Reload)->setVisible(false);
 }
 
 FaucetDialog::~FaucetDialog() {
@@ -42,9 +43,7 @@ FaucetDialog::~FaucetDialog() {
 
 void FaucetDialog::replyReceived(QNetworkReply* reply) {
     if(reply->request().url().path().endsWith("userverify")) {
-        QByteArray array = reply->readAll();/*reply is cleared after this call and will not contains anything.*/
-        /*Write the JSON wherever you want to in the array*/
-        reply->write(array);
+        reply->write(reply->readAll());
     }
 }
 
@@ -70,6 +69,7 @@ void FaucetDialog::on_buttonBox_accepted() {
     double balance = floor(jsonObj["balance"].toString().toDouble());
     if(balance > 1.0) {
         profileWidget->GetUi()->balanceLine->setText(QString::number(balance/1e8, 'f', 8));
+        profileWidget->ResetFaucetTimer();
         destroy();
     } else {
         QMessageBox msgBox;

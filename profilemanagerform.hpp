@@ -24,6 +24,8 @@ private slots:
 
     void on_listWidget_profiles_itemDoubleClicked(QListWidgetItem *item);
 
+    void on_removeProfile_clicked();
+
 private:
     Ui::ProfileManagerForm *ui;
 };

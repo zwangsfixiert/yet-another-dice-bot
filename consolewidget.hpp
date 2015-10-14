@@ -3,6 +3,8 @@
 
 #include <QWidget>
 
+#include "usermenuframe.hpp"
+
 namespace Ui {
 class ConsoleWidget;
 }
@@ -19,11 +21,13 @@ public:
 
 private slots:
     void on_consoleOutput_textChanged();
-
     void on_consoleInput_returnPressed();
+    void on_consoleOutput_anchorClicked(const QUrl &arg1);
 
 private:
     Ui::ConsoleWidget *ui;
+    UserMenuFrame* userMenu{nullptr};
+    bool userMenuShown{false};
 };
 
 #endif // CONSOLEWIDGET_HPP

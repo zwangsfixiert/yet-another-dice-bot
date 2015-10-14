@@ -1,5 +1,6 @@
 #include <QWidget>
 #include <QTabBar>
+#include <QStringList>
 
 #include "profilewidget.hpp"
 #include "ui_profilewidget.h"
@@ -16,7 +17,8 @@ ProfileWidget::ProfileWidget(QString username, QWidget *parent) :
 {
     ui->setupUi(this);
 
-    Profile* profile = ((MainWindow*)parent->topLevelWidget())->GetProfileManager().GetProfile(username);
+    MainWindow* win = (MainWindow*)parent->topLevelWidget();
+    Profile* profile = win->GetProfileManager().GetProfile(username);
     assert(profile != nullptr && "profile invalid, not found");
 
     ui->usernameEdit->setText(profile->username);
@@ -35,7 +37,19 @@ ProfileWidget::ProfileWidget(QString username, QWidget *parent) :
     ConsoleWidget* console = new ConsoleWidget;
     ui->consoleTab->addTab(console, "Console");
 
-    MainWindow* win = (MainWindow*)parent->topLevelWidget();
+    QDir preBetScriptDir(win->GetScriptDir()+ "/prebet");
+    QDir postBetScriptDir(win->GetScriptDir()+ "/postbet");
+    QDir targetScriptDir(win->GetScriptDir()+ "/target");
+
+    qDebug() << preBetScriptDir << postBetScriptDir << targetScriptDir;
+    QStringList files = preBetScriptDir.entryList(QDir::Files);
+    ui->preBetScriptList->addItems(files);
+
+    files = postBetScriptDir.entryList(QDir::Files);
+    ui->postBetScriptList->addItems(files);
+
+    files = targetScriptDir.entryList(QDir::Files);
+    ui->targetScriptList->addItems(files);
 
     bool authenticated = false;
     if(profile->accesstoken != "") {
@@ -97,32 +111,46 @@ ProfileWidget::ProfileWidget(QString username, QWidget *parent) :
                 std::string user = data->get_map()["username"]->get_string();
                 std::string touser = data->get_map()["toUsername"]->get_string();
                 std::string message = data->get_map()["message"]->get_string();
+                message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
+
                 qDebug() << "user " << user.c_str() << " touser " << touser.c_str() << " msg " << message.c_str();
 
-                QString chatentry;
+                QString parsemessage = PrettyPrintMessage(message.c_str());
+
                 // TODO support multiple msg tabs or a single profile global message tabs
+                QString chatentry;
                 if(user == profile_username.toStdString()) {
-                    message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
-                    chatentry = "Msg to <" + QString(touser.c_str()) + "> " + QString(message.c_str());
+                    chatentry = "You whispered to &lt;<a href=\"yadb://local/userMenu/" +
+                            QString(touser.c_str()) + "\">" +
+                            QString(touser.c_str()) + "</a>&gt; " +
+                            parsemessage;
                 } else {
-                    message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
-                    chatentry = "Msg from <" + QString(user.c_str()) + "> " + QString(message.c_str());
+                    chatentry = "&lt;<a href=\"yadb://local/userMenu/" +
+                            QString(user.c_str()) + "\">" +
+                            QString(user.c_str()) + "</a>&gt; whispered " +
+                            parsemessage;
                 }
+
                 chat->GetUi()->consoleOutput->moveCursor(QTextCursor::End);
                 chat->GetUi()->consoleOutput->append(chatentry);
-
         }));
 
         socketIO.GetSio().socket()->on("msg", sio::socket::event_listener_aux(
-            [chat] (std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp) {
+            [chat, this] (std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp) {
                 std::string user = data->get_map()["username"]->get_string();
                 std::string message = data->get_map()["message"]->get_string();
                 std::string room = data->get_map()["room"]->get_string();
+                message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
+
+                QString parsemessage = PrettyPrintMessage(message.c_str());
 
                 // TODO support multiple room tabs
                 if(room == "English") {
-                    message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
-                    QString chatentry('<' + QString(user.c_str()) + "> " + QString(message.c_str()));
+                    QString chatentry = "&lt;<a href=\"yadb://local/userMenu/" +
+                            QString(user.c_str()) + "\">" +
+                            QString(user.c_str()) + "</a>&gt; " +
+                            parsemessage;
+
                     chat->GetUi()->consoleOutput->moveCursor(QTextCursor::End);
                     chat->GetUi()->consoleOutput->append(chatentry);
                 }
@@ -138,10 +166,74 @@ ProfileWidget::ProfileWidget(QString username, QWidget *parent) :
 
             ui->balanceLine->setText(QString::number(balance+amount, 'f', 8));
     }));
+
+    userInfo = new UserInfoFrame(this);
+    betInfo = new BetInfoFrame(this);
+
+    QTimer* faucetRemainingTimer = new QTimer(this);
+    connect(faucetRemainingTimer, SIGNAL(timeout()), this, SLOT(updateFaucetRemainingTimer()));
+    faucetRemainingTimer->start(50);
+
+    faucetTimer = new QTimer(this);
+    connect(faucetTimer, SIGNAL(timeout()), this, SLOT(updateFaucetTimer()));
+    faucetTimer->start(50);
 }
 
 ProfileWidget::~ProfileWidget() {
     delete ui;
+    delete faucetTimer;
+}
+
+QString ProfileWidget::PrettyPrintMessage(QString message) {
+    int betIdxStart = message.indexOf(QRegExp("(b:|bet:)", Qt::CaseInsensitive), 0);
+    int betIdxEnd = message.indexOf(" ", betIdxStart);
+    if(betIdxStart >= 0) {
+        if(betIdxEnd < 0) {
+            // End of message reached
+            betIdxEnd = message.count();
+        }
+        QString bet = message.mid(betIdxStart, betIdxEnd-betIdxStart);
+        QString replace = "<a href=\"yadb://local/betInfo/" +
+                           bet.section(":", 1, 1) + "\">" + bet +
+                           "</a>";
+        message.replace(betIdxStart, betIdxEnd-betIdxStart, replace);
+    }
+
+    int userIdxStart = message.indexOf(QRegExp("(u:|user:)", Qt::CaseInsensitive), 0);
+    int userIdxEnd = message.indexOf(" ", userIdxStart);
+    if(userIdxStart >= 0) {
+        if(userIdxEnd < 0) {
+            // End of message reached
+            userIdxEnd = message.count();
+        }
+        QString user = message.mid(userIdxStart, userIdxEnd-userIdxStart);
+        QString replace = "<a href=\"yadb://local/userInfo/" +
+                           user.section(":", 1, 1) + "\">" + user +
+                           "</a>";
+        message.replace(userIdxStart, userIdxEnd-userIdxStart, replace);
+    }
+
+    int urlIdxStart = message.indexOf(QRegExp("(http:|https:)"), 0);
+    int urlIdxEnd = message.indexOf(" ", urlIdxStart);
+    if(urlIdxStart >= 0) {
+        if(urlIdxEnd < 0) {
+            // End of message reached
+            urlIdxEnd = message.count();
+        }
+        QString url = message.mid(urlIdxStart, urlIdxEnd-urlIdxStart);
+        QString replace = "<a href=\"" +
+                           url + "\">" + url +
+                           "</a>";
+        message.replace(urlIdxStart, urlIdxEnd-urlIdxStart, replace);
+    }
+
+    return message;
+}
+
+void ProfileWidget::ResetFaucetTimer() {
+    faucetTimer->setInterval(180*1000);
+    faucetTimer->start();
+    ui->faucetPushButton->setDisabled(true);
 }
 
 void ProfileWidget::on_faucetPushButton_clicked() {
@@ -191,8 +283,6 @@ void ProfileWidget::on_wagerLine_editingFinished() {
 
 void ProfileWidget::on_winChanceDoubleSpinBox_valueChanged(double arg1)
 {
-     qDebug() << "winchance changed" << arg1;
-
      double target = arg1;
      if(ui->highorlowComboBox->currentText().toLower() == "high")
          target = 99.99-arg1;
@@ -207,8 +297,6 @@ void ProfileWidget::on_winChanceDoubleSpinBox_valueChanged(double arg1)
 
 void ProfileWidget::on_highorlowComboBox_currentIndexChanged(int index)
 {
-    qDebug() << "highlowcombo" << index;
-
     double chance = ui->winChanceDoubleSpinBox->value();
     double target = 0.0;
 
@@ -217,7 +305,7 @@ void ProfileWidget::on_highorlowComboBox_currentIndexChanged(int index)
     else
         target = chance;
 
-     ui->targetDoubleSpinBox->setValue(target);
+    ui->targetDoubleSpinBox->setValue(target);
 }
 
 void ProfileWidget::on_rollPushButton_clicked()
@@ -300,4 +388,32 @@ void ProfileWidget::on_doubleBetPushButton_clicked()
     if(currWagerSats > floor(ui->balanceLine->text().toDouble()*1e8)) {
         ui->wagerLine->setToolTip("Insufficient balance");
     }
+}
+
+void ProfileWidget::on_startPushButton_clicked()
+{
+    QString preBetScript = ui->preBetScriptList->currentItem()->text();
+    QString postBetScript = ui->postBetScriptList->currentItem()->text();
+    QString targetSelectionScript = ui->targetScriptList->currentItem()->text();
+
+    if(preBetScript == "" || postBetScript == "" ||
+            targetSelectionScript == "") {
+        return;
+    }
+
+    // TODO
+}
+void ProfileWidget::updateFaucetRemainingTimer() {
+    if(faucetTimer->remainingTime() > 0) {
+        ui->faucetPushButton->setText("Faucet (" +
+                                      QString::number(faucetTimer->remainingTime()/1000) +
+                                      " seconds)");
+    } else {
+        ui->faucetPushButton->setText("Faucet (Ready)");
+    }
+}
+
+void ProfileWidget::updateFaucetTimer() {
+    ui->faucetPushButton->setEnabled(true);
+    faucetTimer->stop();
 }

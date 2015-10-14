@@ -31,7 +31,7 @@ void ProfileManagerForm::SetDefaults() {
 }
 
 void ProfileManagerForm::on_addProfile_clicked() {
-    qDebug() << "addProfile_clicked " << objectName();
+    //qDebug() << "addProfile_clicked " << objectName();
 
     MainWindow* win = (MainWindow*)topLevelWidget();
     qDebug() << win;
@@ -83,7 +83,7 @@ void ProfileManagerForm::on_addProfile_clicked() {
 
 void ProfileManagerForm::on_loadProfile_clicked()
 {
-    qDebug() << "loadProfile_clicked " << objectName();
+    //qDebug() << "loadProfile_clicked " << objectName();
 
     MainWindow* win = (MainWindow*)parent()->parent()->parent()->parent();
 
@@ -112,16 +112,29 @@ void ProfileManagerForm::on_loadProfile_clicked()
 
 void ProfileManagerForm::on_listWidget_profiles_itemDoubleClicked(QListWidgetItem *item)
 {
-    qDebug() << "itemDoubleClicked " << objectName();
+    //qDebug() << "itemDoubleClicked " << objectName();
 
-    MainWindow* win = (MainWindow*)parent()->parent()->parent()->parent();
-
-    qDebug() << item->text();
-    auto profile = win->GetProfileManager().GetProfile(item->text());
+    MainWindow* win = (MainWindow*)topLevelWidget();
+    Profile* profile = win->GetProfileManager().GetProfile(item->text());
 
     ui->lineEdit_username->setText(profile->username);
     ui->lineEdit_password->setText(profile->password);
     ui->lineEdit_token->setText(profile->accesstoken);
     ui->chatEnabled->setChecked(profile->chatenabled);
     ui->autoloadEnabled->setChecked(profile->autoload);
+}
+
+void ProfileManagerForm::on_removeProfile_clicked()
+{
+    MainWindow* win = (MainWindow*)topLevelWidget();
+
+    for(int i = 0; i < ui->listWidget_profiles->count(); i++) {
+        QListWidgetItem* item = ui->listWidget_profiles->item(i);
+        if(item->isSelected()) {
+            if(win->GetProfileManager().RemoveProfile(item->text())) {
+                ui->listWidget_profiles->takeItem(i);
+            }
+        }
+    }
+    win->WriteSettings();
 }

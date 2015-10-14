@@ -21,6 +21,7 @@ public:
 
     void ReadSettings();
     void WriteSettings();
+    QString GetScriptDir();
     ProfileManager& GetProfileManager() { return profileManager; }
     PrimeDiceAPI::RestAPI& GetRestAPI() { return restAPI; }
 
@@ -32,9 +33,9 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
-
+    QString appDir;
+    QString scriptDir;
     PrimeDiceAPI::RestAPI restAPI;
-
     ProfileManager profileManager;
 };
 

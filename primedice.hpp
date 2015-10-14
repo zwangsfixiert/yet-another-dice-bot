@@ -23,7 +23,9 @@ public:
     QString SendMessage(Profile& profile, QString channel, QString message, QString username);
     QString TipUser(Profile& profile, QString username, uint64_t amount);
     QString Bet(Profile& profile, bool conditionHigh, double target, uint64_t amount);
+    QString GetUserInfo(Profile& profile, QString username);
     QString GetOwnUserInfo(Profile& profile);
+    QString GetBetInfo(Profile& profile, QString betId);
 
 private:
     QNetworkAccessManager mgr;

@@ -19,10 +19,13 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
 
+    appDir = QCoreApplication::applicationDirPath();
+    scriptDir = appDir + "/scripts";
+    qDebug() << appDir << scriptDir;
+
     ReadSettings();
 
     QToolButton *tb = new QToolButton();
-    //tb->setText("+");
     tb->setAutoRaise(true);
     tb->setStyleSheet(QString("QToolButton { width: 0; height: 0;}"));
 
@@ -78,8 +81,11 @@ void MainWindow::WriteSettings() {
     settings.endArray();
 }
 
+QString MainWindow::GetScriptDir() {
+    return appDir + "/scripts";
+}
+
 void MainWindow::on_tabWidget_tabCloseRequested(int index) {
-    //auto widget = (ProfileWidget*)this->ui->tabWidget->widget(index);
     qDebug() << "closing tab " << ui->tabWidget->tabText(index);
 
     auto profile = profileManager.GetProfile(ui->tabWidget->tabText(index));

@@ -93,7 +93,7 @@ QString RestAPI::SendMessage(Profile& profile, QString channel, QString message,
     QUrlQuery params;
     params.addQueryItem("username", profile.username);
     params.addQueryItem("room", channel);
-    params.addQueryItem("message", message);
+    params.addQueryItem("message", QString(QUrl::toPercentEncoding(message)));
     params.addQueryItem("token", profile.accesstoken);
     if(username != "")
         params.addQueryItem("toUsername", username);
@@ -139,8 +139,16 @@ QString RestAPI::Bet(Profile& profile, bool conditionHigh, double target, uint64
     return Post(restAPIurl + QString("/bet?access_token=" + profile.accesstoken), data);
 }
 
+QString RestAPI::GetUserInfo(Profile& profile, QString username) {
+    return Get(restAPIurl + QString("/users/" + username + "?access_token=" + profile.accesstoken));
+}
+
 QString RestAPI::GetOwnUserInfo(Profile& profile) {
     return Get(restAPIurl + QString("/users/1?access_token=" + profile.accesstoken));
+}
+
+QString RestAPI::GetBetInfo(Profile& profile, QString betId) {
+    return Get(restAPIurl + QString("/bets/" + betId + "?access_token=" + profile.accesstoken));
 }
 
 } // namespace PrimeDiceAPI
