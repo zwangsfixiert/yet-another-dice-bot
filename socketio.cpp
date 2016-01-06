@@ -29,6 +29,10 @@ void SocketIO::Connect(Profile* profile) {
     client.connect("https://sockets.primedice.com");
 }
 
+void SocketIO::Disconnect() {
+    client.socket()->close();
+}
+
 void SocketIO::OpenListener() {
     // Initial authentication to the socket-io host
     client.socket()->emit("user", profile->accesstoken.toStdString());

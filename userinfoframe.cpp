@@ -5,11 +5,15 @@
 #include "profilewidget.hpp"
 #include "ui_profilewidget.h"
 
+#include "primedice.hpp"
+
 UserInfoFrame::UserInfoFrame(QWidget *parent) :
     QFrame(parent, Qt::Tool|Qt::Window|Qt::FramelessWindowHint),
     ui(new Ui::UserInfoFrame)
 {
     ui->setupUi(this);
+
+    //ProfileWidget* profileWidget = (ProfileWidget*)parent;
 }
 
 UserInfoFrame::~UserInfoFrame()
@@ -22,35 +26,7 @@ void UserInfoFrame::Display(QString username) {
     ProfileWidget* profileWidget = (ProfileWidget*)win->GetUi()->tabWidget->currentWidget();
     QString profilename = profileWidget->GetUi()->usernameEdit->text();
     Profile* profile = win->GetProfileManager().GetProfile(profilename);
-    QString res = win->GetRestAPI().GetUserInfo(*profile, username);
-
-    QJsonDocument jsonRes = QJsonDocument::fromJson(res.toLocal8Bit());
-    QJsonObject jsonObj = jsonRes.object();
-    QJsonObject userObj = jsonObj["user"].toObject();
-    QString user = userObj["username"].toString();
-    QString wagered = QString::number(userObj["wagered"].toDouble()/1e8, 'f', 8);
-    QString profit = QString::number(userObj["profit"].toDouble()/1e8, 'f', 8);
-    QString messages = QString::number(userObj["messages"].toInt());
-    QString bets = QString::number(userObj["bets"].toInt());
-    QString wins = QString::number(userObj["wins"].toInt());
-    QString losses = QString::number(userObj["losses"].toInt());
-    QString luck = QString::number(userObj["win_risk"].toDouble()/userObj["lose_risk"].toDouble(), 'f', 8);
-
-    ui->userinfoLabel->setText(user);
-    ui->totalWagered->setText(wagered);
-    ui->totalProfit->setText(profit);
-    ui->chatMessages->setText(messages);
-    ui->totalBets->setText(bets);
-    ui->wins->setText(wins);
-    ui->losses->setText(losses);
-    ui->luck->setText(luck);
-
-    QRect topLevelGeom = win->geometry();
-    QSize size = this->size();
-    setGeometry(topLevelGeom.center().x()-size.width()/2,
-                          topLevelGeom.center().y()-size.height()/2,
-                          size.width(), size.height());
-    show();
+    QNetworkReply* reply = profileWidget->GetRestAPI().GetUserInfo(*profile, username);
 }
 
 void UserInfoFrame::on_closeButton_clicked()

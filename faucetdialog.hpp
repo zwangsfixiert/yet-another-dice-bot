@@ -18,12 +18,13 @@ public:
     explicit FaucetDialog(QWidget *parent = 0);
     ~FaucetDialog();
 
+    void Refresh();
+
 private slots:
     void on_buttonBox_accepted();
-
     void on_buttonBox_rejected();
-
     void replyReceived(QNetworkReply* reply);
+    void onFaucet(QNetworkReply* reply);
 
 private:
     Ui::FaucetDialog *ui;

@@ -26,7 +26,7 @@ public:
     SocketIO();
     void Initialize(bool chatEnabled);
     void Connect(Profile* profile);
-
+    void Disconnect();
     void OnPrivateMessage(std::string const& name, sio::message::ptr const& data, bool hasAck, sio::message::ptr &ack_resp);
     void OnMessage(std::string const& name, sio::message::ptr const& data, bool hasAck, sio::message::ptr &ack_resp);
     void OnTip(std::string const& name, sio::message::ptr const& data, bool hasAck, sio::message::ptr &ack_resp);

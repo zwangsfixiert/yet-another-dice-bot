@@ -3,7 +3,7 @@
 
 #include <QMainWindow>
 
-#include "primedice.hpp"
+#include "profile.hpp"
 
 namespace Ui {
 class MainWindow;
@@ -23,7 +23,6 @@ public:
     void WriteSettings();
     QString GetScriptDir();
     ProfileManager& GetProfileManager() { return profileManager; }
-    PrimeDiceAPI::RestAPI& GetRestAPI() { return restAPI; }
 
 public slots:
     void AddTab();
@@ -35,7 +34,6 @@ private:
     Ui::MainWindow *ui;
     QString appDir;
     QString scriptDir;
-    PrimeDiceAPI::RestAPI restAPI;
     ProfileManager profileManager;
 };
 

@@ -3,11 +3,16 @@
 
 #include <QWidget>
 #include <QTimer>
+#include <QJSEngine>
+#include <QNetworkReply>
 
+#include "consolewidget.hpp"
 #include "userinfoframe.hpp"
 #include "betinfoframe.hpp"
+#include "faucetdialog.hpp"
 
 #include "socketio.hpp"
+#include "primedice.hpp"
 
 namespace Ui {
 class ProfileWidget;
@@ -21,16 +26,24 @@ public:
     explicit ProfileWidget(QString username, QWidget *parent = 0);
     ~ProfileWidget();
 
-    void UpdateProfit();
     SocketIO& GetSio() { return socketIO; }
+    RestAPI& GetRestAPI() { return restAPI; }
+
+    ConsoleWidget* GetConsole() { return console; }
+    ConsoleWidget* GetChat() { return chat; }
     QString GetUsername() { return profile_username; }
     Ui::ProfileWidget* GetUi() { return ui; }
     UserInfoFrame* GetUserInfoFrame() { return userInfo; }
     BetInfoFrame* GetBetInfoFrame() { return betInfo; }
+    QJSEngine* GetScriptEngine() { return scriptEngine; }
     QString PrettyPrintMessage(QString message);
     void ResetFaucetTimer();
+    void UpdateProfit();
 
-private slots:
+Q_SIGNALS:
+    void RequestAddLine(const ConsoleWidget* console, const QString &text);
+
+private Q_SLOTS:
     void on_faucetPushButton_clicked();
     void on_updateButton_clicked();
     void on_wagerLine_editingFinished();
@@ -45,14 +58,27 @@ private slots:
     void updateFaucetTimer();
     void updateFaucetRemainingTimer();
 
+    //void onFaucet(QNetworkReply* reply);
+    void onLogin(QNetworkReply* reply);
+    void onBet(QNetworkReply* reply);
+    void onBetInfo(QNetworkReply* reply);
+    void onUserInfo(QNetworkReply* reply);
+    void onOwnUserInfo(QNetworkReply* reply);
+
 private:
     Ui::ProfileWidget *ui;
     QString profile_username;
     SocketIO socketIO;
-    UserInfoFrame* userInfo;
-    BetInfoFrame* betInfo;
-    QTimer* faucetTimer;
-    int faucetTimeRemaining{180};
+    RestAPI restAPI;
+    ConsoleWidget* console{nullptr};
+    ConsoleWidget* chat{nullptr};
+    UserInfoFrame* userInfo{nullptr};
+    BetInfoFrame* betInfo{nullptr};
+    FaucetDialog* faucet{nullptr};
+    QTimer* faucetTimer{nullptr};
+    QJSEngine* scriptEngine{nullptr};
+    int faucetClaimTime{180};
+    bool authenticated{false};
 };
 
 #endif // PROFILEWIDGET_HPP

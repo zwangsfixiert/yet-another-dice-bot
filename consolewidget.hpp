@@ -2,6 +2,7 @@
 #define CONSOLEWIDGET_HPP
 
 #include <QWidget>
+#include <QNetworkReply>
 
 #include "usermenuframe.hpp"
 
@@ -19,10 +20,14 @@ public:
 
     Ui::ConsoleWidget* GetUi() { return ui; }
 
-private slots:
+private Q_SLOTS:
     void on_consoleOutput_textChanged();
     void on_consoleInput_returnPressed();
     void on_consoleOutput_anchorClicked(const QUrl &arg1);
+
+    void onTip(QNetworkReply* reply);
+
+    void AddLine(const ConsoleWidget* console, const QString& test);
 
 private:
     Ui::ConsoleWidget *ui;

@@ -24,7 +24,8 @@ SOURCES += main.cpp\
     consolewidget.cpp \
     usermenuframe.cpp \
     userinfoframe.cpp \
-    betinfoframe.cpp
+    betinfoframe.cpp \
+    scriptmanager.cpp
 
 HEADERS  += mainwindow.hpp \
     primedice.hpp \
@@ -37,7 +38,8 @@ HEADERS  += mainwindow.hpp \
     consolewidget.hpp \
     usermenuframe.hpp \
     userinfoframe.hpp \
-    betinfoframe.hpp
+    betinfoframe.hpp \
+    scriptmanager.hpp
 
 FORMS    += mainwindow.ui \
     profilewidget.ui \

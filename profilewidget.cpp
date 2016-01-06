@@ -1,6 +1,9 @@
+#include <mutex>
+
 #include <QWidget>
 #include <QTabBar>
 #include <QStringList>
+#include <QJSEngine>
 
 #include "profilewidget.hpp"
 #include "ui_profilewidget.h"
@@ -8,13 +11,24 @@
 #include "primedice.hpp"
 #include "mainwindow.hpp"
 #include "faucetdialog.hpp"
+#include "ui_faucetdialog.h"
+
 #include "consolewidget.hpp"
 #include "ui_consolewidget.h"
+
+#include "userinfoframe.hpp"
+#include "ui_userinfoframe.h"
+
+#include "betinfoframe.hpp"
+#include "ui_betinfoframe.h"
+
+std::mutex g_chat_lock;
 
 ProfileWidget::ProfileWidget(QString username, QWidget *parent) :
     QWidget(parent),
     ui(new Ui::ProfileWidget), profile_username(username)
 {
+    scriptEngine = new QJSEngine();
     ui->setupUi(this);
 
     MainWindow* win = (MainWindow*)parent->topLevelWidget();
@@ -34,7 +48,7 @@ ProfileWidget::ProfileWidget(QString username, QWidget *parent) :
     ui->payoutLine->setText(QString::number(getpayout(49.5, 1.0), 'f', 5));
     ui->targetDoubleSpinBox->setValue(target);
 
-    ConsoleWidget* console = new ConsoleWidget;
+    console = new ConsoleWidget(this);
     ui->consoleTab->addTab(console, "Console");
 
     QDir preBetScriptDir(win->GetScriptDir()+ "/prebet");
@@ -51,115 +65,108 @@ ProfileWidget::ProfileWidget(QString username, QWidget *parent) :
     files = targetScriptDir.entryList(QDir::Files);
     ui->targetScriptList->addItems(files);
 
-    bool authenticated = false;
+    userInfo = new UserInfoFrame(this);
+    betInfo = new BetInfoFrame(this);
+    faucet = new FaucetDialog(this);
+
+    connect(this, SIGNAL(RequestAddLine(const ConsoleWidget*, QString)), console, SLOT(AddLine(const ConsoleWidget*, QString)));
+
+    connect(&restAPI, SIGNAL(LoginHandler(QNetworkReply*)), this, SLOT(onLogin(QNetworkReply*)));
+    connect(&restAPI, SIGNAL(BetHandler(QNetworkReply*)), this, SLOT(onBet(QNetworkReply*)));
+    connect(&restAPI, SIGNAL(OwnUserInfoHandler(QNetworkReply*)), this, SLOT(onOwnUserInfo(QNetworkReply*)));
+
+    connect(&restAPI, SIGNAL(BetInfoHandler(QNetworkReply*)), this, SLOT(onBetInfo(QNetworkReply*)));
+    connect(&restAPI, SIGNAL(UserInfoHandler(QNetworkReply*)), this, SLOT(onUserInfo(QNetworkReply*)));
+
+    connect(&restAPI, SIGNAL(TipHandler(QNetworkReply*)), console, SLOT(onTip(QNetworkReply*)));
+
     if(profile->accesstoken != "") {
-        QString res = win->GetRestAPI().GetOwnUserInfo(*profile);
-        QJsonDocument jsonRes = QJsonDocument::fromJson(res.toLocal8Bit());
-        QJsonObject jsonObj = jsonRes.object();
-        QJsonObject userObj = jsonObj["user"].toObject();
-        qDebug() << res << "has token" << userObj["balance"].toString() << userObj["username"].toString();
-
-        if(userObj["username"].toString() == profile->username) {
-            qDebug() << "has token authed";
-            authenticated = true;
-
-            double balance = floor(userObj["balance"].toDouble())/1e8;
-            ui->balanceLine->setText(QString::number(balance, 'f', 8));
-        }
+        QNetworkReply* reply = restAPI.GetOwnUserInfo(*profile);
     }
 
-    if(!authenticated) {
-        QString res = win->GetRestAPI().Login(*profile, profile->username, profile->password, "");
-        qDebug() << "not authed" << res;
-        QJsonDocument jsonRes = QJsonDocument::fromJson(res.toLocal8Bit());
-        QJsonObject jsonObj = jsonRes.object();
-        QString token = jsonObj["access_token"].toString();
-        if(token != "") {
-            QString userinfores = win->GetRestAPI().GetOwnUserInfo(*profile);
-            QJsonDocument jsonRes = QJsonDocument::fromJson(userinfores.toLocal8Bit());
-            QJsonObject jsonObj = jsonRes.object();
-            QJsonObject userObj = jsonObj["user"].toObject();
-            double balance = floor(userObj["balance"].toDouble())/1e8;
-            ui->balanceLine->setText(QString::number(balance, 'f', 8));
-
-            profile->accesstoken = token;
-            authenticated = true;
-            win->WriteSettings();
-        }
-    }
-
-    QString msg;
-    if(authenticated)
-        msg = "Successfully authenticated as user " + profile->username + ".";
-    else
-        msg = "Unable to authenticate as user " + profile->username + ". Ensure your profile configuration is correct.";
-
-    console->GetUi()->consoleOutput->moveCursor(QTextCursor::End);
-    console->GetUi()->consoleOutput->append(msg);
-
-    show();
-
-    socketIO.Initialize(profile->chatenabled);
-    socketIO.Connect(profile);
+    using namespace sio;
 
     if(profile->chatenabled) {
-        ConsoleWidget* chat = new ConsoleWidget;
+        chat = new ConsoleWidget(this);
         ui->consoleTab->addTab(chat, "Chat");
 
-        socketIO.GetSio().socket()->on("pm", sio::socket::event_listener_aux(
-            [chat, this] (std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp) {
+        connect(this, SIGNAL(RequestAddLine(const ConsoleWidget*, QString)), chat, SLOT(AddLine(const ConsoleWidget*, QString)));
+
+        socketIO.GetSio().socket()->on("pm", socket::event_listener_aux(
+            [this] (std::string const& name, message::ptr const& data, bool isAck, message::list &ack_resp) {
                 std::string user = data->get_map()["username"]->get_string();
                 std::string touser = data->get_map()["toUsername"]->get_string();
-                std::string message = data->get_map()["message"]->get_string();
-                message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
+                std::string msg = data->get_map()["message"]->get_string();
 
-                qDebug() << "user " << user.c_str() << " touser " << touser.c_str() << " msg " << message.c_str();
+                bool isSpecialUser = data->get_map()["admin"]->get_flag() == message::flag_string;
+                bool isMod = isSpecialUser && data->get_map()["admin"]->get_string() == "M";
+                bool isAdmin = isSpecialUser && data->get_map()["admin"]->get_string() == "A";
+                bool isVIP = isSpecialUser && data->get_map()["admin"]->get_string() == "VIP";
 
-                QString parsemessage = PrettyPrintMessage(message.c_str());
+                msg.erase(std::remove(msg.begin(), msg.end(), '\n'), msg.end());
+
+                QString parsemessage = PrettyPrintMessage(msg.c_str());
+
+                QString colour = "#000000";
+                if(isVIP)
+                    colour = "#0000FF";
+                if(isAdmin || isMod)
+                    colour = "#CC0000";
 
                 // TODO support multiple msg tabs or a single profile global message tabs
                 QString chatentry;
                 if(user == profile_username.toStdString()) {
-                    chatentry = "You whispered to &lt;<a href=\"yadb://local/userMenu/" +
-                            QString(touser.c_str()) + "\">" +
-                            QString(touser.c_str()) + "</a>&gt; " +
+                    chatentry = "<b>You whispered to &lt;<a href=\"yadb://local/userMenu/" +
+                            QString(touser.c_str()) + "\" style=\"text-decoration: none;\">" +
+                            QString(touser.c_str()) + "</a>&gt;</b> " +
                             parsemessage;
                 } else {
-                    chatentry = "&lt;<a href=\"yadb://local/userMenu/" +
-                            QString(user.c_str()) + "\">" +
-                            QString(user.c_str()) + "</a>&gt; whispered " +
+                    chatentry = "<b>&lt;<a href=\"yadb://local/userMenu/" +
+                            QString(user.c_str()) + "\" style=\"text-decoration: none; color:" + colour +"\"" + ">" +
+                            QString(user.c_str()) + "</a>&gt; whispered:</b> " +
                             parsemessage;
                 }
 
-                chat->GetUi()->consoleOutput->moveCursor(QTextCursor::End);
-                chat->GetUi()->consoleOutput->append(chatentry);
+                Q_EMIT RequestAddLine(chat, chatentry);
         }));
 
-        socketIO.GetSio().socket()->on("msg", sio::socket::event_listener_aux(
-            [chat, this] (std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp) {
+        socketIO.GetSio().socket()->on("msg", socket::event_listener_aux(
+            [this] (std::string const& name, message::ptr const& data, bool isAck, message::list &ack_resp) {
                 std::string user = data->get_map()["username"]->get_string();
-                std::string message = data->get_map()["message"]->get_string();
+                std::string msg = data->get_map()["message"]->get_string();
                 std::string room = data->get_map()["room"]->get_string();
-                message.erase(std::remove(message.begin(), message.end(), '\n'), message.end());
 
-                QString parsemessage = PrettyPrintMessage(message.c_str());
+                bool isSpecialUser = data->get_map()["admin"]->get_flag() == message::flag_string;
+                bool isMod = isSpecialUser && data->get_map()["admin"]->get_string() == "M";
+                bool isAdmin = isSpecialUser && data->get_map()["admin"]->get_string() == "A";
+                bool isVIP = isSpecialUser && data->get_map()["admin"]->get_string() == "VIP";
+
+                msg.erase(std::remove(msg.begin(), msg.end(), '\n'), msg.end());
+
+                QString parsemessage = PrettyPrintMessage(msg.c_str());
+
+                QString colour = "#000000";
+                if(isVIP)
+                    colour = "#0000FF";
+                if(isAdmin || isMod)
+                    colour = "#CC0000";
 
                 // TODO support multiple room tabs
                 if(room == "English") {
-                    QString chatentry = "&lt;<a href=\"yadb://local/userMenu/" +
-                            QString(user.c_str()) + "\">" +
-                            QString(user.c_str()) + "</a>&gt; " +
-                            parsemessage;
+                    QString chatentry = "<b>&lt;<a href=\"yadb://local/userMenu/" +
+                    QString(user.c_str()) + "\" style=\"text-decoration: none; color:" + colour + "\">" +
+                    QString(user.c_str()) + "</a>&gt;</b> " + parsemessage;
 
-                    chat->GetUi()->consoleOutput->moveCursor(QTextCursor::End);
-                    chat->GetUi()->consoleOutput->append(chatentry);
+                    Q_EMIT RequestAddLine(chat, chatentry);
                 }
         }));
     }
 
+    show();
+
     // tip {"userid":"566176","user":"UnixPunk","amount":61288,"sender":"singpays","senderid":"334"}
-    socketIO.GetSio().socket()->on("tip", sio::socket::event_listener_aux(
-        [this] (std::string const& name, sio::message::ptr const& data, bool isAck, sio::message::list &ack_resp) {
+    socketIO.GetSio().socket()->on("tip", socket::event_listener_aux(
+        [this] (std::string const& name, message::ptr const& data, bool isAck, message::list &ack_resp) {
             //std::string sender = data->get_map()["sender"]->get_string();
             double amount = data->get_map()["amount"]->get_double()/1e8;
             double balance = ui->balanceLine->text().toDouble();
@@ -167,21 +174,201 @@ ProfileWidget::ProfileWidget(QString username, QWidget *parent) :
             ui->balanceLine->setText(QString::number(balance+amount, 'f', 8));
     }));
 
-    userInfo = new UserInfoFrame(this);
-    betInfo = new BetInfoFrame(this);
+    socketIO.Initialize(profile->chatenabled);
+    socketIO.Connect(profile);
 
     QTimer* faucetRemainingTimer = new QTimer(this);
     connect(faucetRemainingTimer, SIGNAL(timeout()), this, SLOT(updateFaucetRemainingTimer()));
-    faucetRemainingTimer->start(50);
+    faucetRemainingTimer->start(100);
 
     faucetTimer = new QTimer(this);
     connect(faucetTimer, SIGNAL(timeout()), this, SLOT(updateFaucetTimer()));
-    faucetTimer->start(50);
+    faucetTimer->start(100);
 }
 
 ProfileWidget::~ProfileWidget() {
     delete ui;
     delete faucetTimer;
+
+    scriptEngine->collectGarbage();
+    delete scriptEngine;
+
+    socketIO.Disconnect();
+}
+
+void ProfileWidget::onBetInfo(QNetworkReply* reply) {
+    qDebug() << "onBetInfo";
+    /*
+     "{"bet":{
+        "target":99.98,"player_id":529361,
+        "server":"23b826b9ce2b3....",
+        "player":"xxxx","nonce":94623,"jackpot":0,"profit":-636,
+        "id":7013787533,"condition":">","multiplier":9900,
+        "client":"wC0b3DKgXKL2zZteTb2HG3xJz2TC8B","roll":72.7,
+        "timestamp":"Tue Oct 13 2015 03:50:55 GMT+0000 (UTC)",
+        "amount":636,"win":0}}"
+       */
+    QString res = reply->readAll();
+    QJsonDocument jsonRes = QJsonDocument::fromJson(res.toLocal8Bit());
+    QJsonObject jsonObj = jsonRes.object();
+    QJsonObject betObj = jsonObj["bet"].toObject();
+    QString id = QString::number(qulonglong(betObj["id"].toDouble()));
+    QString target = QString::number(betObj["target"].toDouble(), 'f', 2);
+    QString roll = QString::number(betObj["roll"].toDouble(), 'f', 2);
+    QString condition = betObj["condition"].toString();
+    QString wager = QString::number(betObj["amount"].toDouble()/1e8, 'f', 8);
+    QString profit = QString::number(betObj["profit"].toDouble()/1e8, 'f', 8);
+    QString serverHash = betObj["server"].toString();
+    QString multiplier = QString::number(betObj["multiplier"].toDouble(), 'f', 5);
+    QString user = betObj["player"].toString();
+
+    betInfo->GetUi()->betInfoLabel->setText("Bet #" + id);
+    betInfo->GetUi()->username->setText(user);
+    betInfo->GetUi()->target->setText(condition + target);
+    betInfo->GetUi()->roll->setText(roll);
+    betInfo->GetUi()->wager->setText(wager);
+    betInfo->GetUi()->profit->setText(profit);
+    betInfo->GetUi()->serverSeedHash->setText(serverHash);
+    betInfo->GetUi()->multiplier->setText(multiplier + "X");
+
+    betInfo->show();
+
+    QSize size = betInfo->size();
+    QRect geom = topLevelWidget()->geometry();
+    int cx = geom.center().x();
+    int cy = geom.center().y();
+
+    betInfo->setGeometry(cx-size.width()/2, cy-size.height()/2,
+                size.width(), size.height());
+}
+
+void ProfileWidget::onOwnUserInfo(QNetworkReply* reply) {
+    MainWindow* win = (MainWindow*)topLevelWidget();
+    Profile* profile = win->GetProfileManager().GetProfile(profile_username);
+
+    QString res = reply->readAll();
+    QJsonDocument jsonRes = QJsonDocument::fromJson(res.toLocal8Bit());
+    QJsonObject jsonObj = jsonRes.object();
+    QJsonObject userObj = jsonObj["user"].toObject();
+
+    if(authenticated) {
+        double balance = floor(userObj["balance"].toDouble())/1e8;
+        ui->balanceLine->setText(QString::number(balance, 'f', 8));
+    } else {
+        // token check
+        qDebug() << res << "has token" << userObj["balance"].toDouble()/1e8 << userObj["username"].toString();
+
+        QString msg = "";
+        if(userObj["username"].toString() == profile->username) {
+            qDebug() << "has token authed";
+            authenticated = true;
+
+            double balance = floor(userObj["balance"].toDouble())/1e8;
+            ui->balanceLine->setText(QString::number(balance, 'f', 8));
+
+            msg = "Successfully authenticated as user " + profile->username + " using cached token.";
+        } else {
+            msg = "Unable to authenticate as user " + profile->username + " using cached token, attempting to login.";
+            QNetworkReply* reply = restAPI.Login(*profile, profile->username, profile->password, "");
+        }
+
+        console->GetUi()->consoleOutput->moveCursor(QTextCursor::End);
+        console->GetUi()->consoleOutput->append(msg);
+    }
+}
+
+void ProfileWidget::onLogin(QNetworkReply* reply) {
+    QString res = reply->readAll();
+
+    MainWindow* win = (MainWindow*)topLevelWidget();
+    Profile* profile = win->GetProfileManager().GetProfile(profile_username);
+
+    qDebug() << "not authed" << res;
+    QJsonDocument jsonRes = QJsonDocument::fromJson(res.toLocal8Bit());
+    QJsonObject jsonObj = jsonRes.object();
+    QString token = jsonObj["access_token"].toString();
+    if(token != "") {
+        QNetworkReply* reply = restAPI.GetOwnUserInfo(*profile);
+    }
+}
+
+void ProfileWidget::onBet(QNetworkReply* reply) {
+    /*
+        "{"bet":{"id":6942729536,"player":"PaidBack","player_id":"273890",
+                "amount":0,"target":50.49,"profit":0,"win":false,"condition":">",
+            "roll":20.36,"nonce":4003,"client":"`","multiplier":2,
+            "timestamp":"2015-10-06T14:02:15.502Z","jackpot":false,
+            "server":"6c05cb0b7d454130602b03bce6625738ea049c278009efa44a2b693621ccba15","revealed":false}
+    */
+    qDebug() << reply;
+
+    MainWindow* win = (MainWindow*)topLevelWidget();
+    Profile* profile = win->GetProfileManager().GetProfile(profile_username);
+
+    QString res = reply->readAll();
+    QJsonDocument jsonBetRes = QJsonDocument::fromJson(res.toLocal8Bit());
+    QJsonObject jsonObj = jsonBetRes.object();
+    QJsonObject betObj = jsonObj["bet"].toObject();
+    QJsonObject userObj = jsonObj["user"].toObject();
+
+    double balance = floor(userObj["balance"].toDouble())/1e8;
+    ui->balanceLine->setText(QString::number(balance, 'f', 8));
+
+    QString msg =  "Wagered " + QString::number(betObj["amount"].toDouble()/1e8, 'f', 8) + " on " +
+                betObj["condition"].toString() +
+                QString::number(betObj["target"].toDouble(), 'f', 2) + " " +
+                QString::number(betObj["roll"].toDouble(), 'f', 2) + " and ";
+
+    bool won = betObj["win"].toBool();
+    if(won)
+        msg += "won " + QString::number(round(betObj["profit"].toDouble())/1e8, 'f', 8);
+    else
+        msg += "lost -" + QString::number(round(betObj["amount"].toDouble())/1e8, 'f', 8);
+
+    msg += " B:" + QString::number((int64_t)betObj["id"].toDouble()) + " N:" + QString::number(betObj["nonce"].toInt());
+
+    for(int i = 0; i < ui->consoleTab->count(); i++) {
+        if(ui->consoleTab->tabBar()->tabText(i) != "Console")
+             continue;
+
+        ConsoleWidget* console = (ConsoleWidget*)ui->consoleTab->widget(i);
+        console->GetUi()->consoleOutput->moveCursor(QTextCursor::End);
+        console->GetUi()->consoleOutput->append(msg);
+     }
+}
+
+void ProfileWidget::onUserInfo(QNetworkReply* reply) {
+    QString res = reply->readAll();
+    QJsonDocument jsonRes = QJsonDocument::fromJson(res.toLocal8Bit());
+    QJsonObject jsonObj = jsonRes.object();
+    QJsonObject userObj = jsonObj["user"].toObject();
+    QString user = userObj["username"].toString();
+    QString wagered = QString::number(userObj["wagered"].toDouble()/1e8, 'f', 8);
+    QString profit = QString::number(userObj["profit"].toDouble()/1e8, 'f', 8);
+    QString messages = QString::number(userObj["messages"].toInt());
+    QString bets = QString::number(userObj["bets"].toInt());
+    QString wins = QString::number(userObj["wins"].toInt());
+    QString losses = QString::number(userObj["losses"].toInt());
+    QString luck = QString::number(userObj["win_risk"].toDouble()/userObj["lose_risk"].toDouble()*100., 'f', 8);
+
+    userInfo->GetUi()->userinfoLabel->setText(user);
+    userInfo->GetUi()->totalWagered->setText(wagered);
+    userInfo->GetUi()->totalProfit->setText(profit);
+    userInfo->GetUi()->chatMessages->setText(messages);
+    userInfo->GetUi()->totalBets->setText(bets);
+    userInfo->GetUi()->wins->setText(wins);
+    userInfo->GetUi()->losses->setText(losses);
+    userInfo->GetUi()->luck->setText(luck + "%");
+
+    userInfo->show();
+
+    QSize size = userInfo->size();
+    QRect geom = topLevelWidget()->geometry();
+    int cx = geom.center().x();
+    int cy = geom.center().y();
+
+    userInfo->setGeometry(cx-size.width()/2, cy-size.height()/2,
+                size.width(), size.height());
 }
 
 QString ProfileWidget::PrettyPrintMessage(QString message) {
@@ -231,7 +418,7 @@ QString ProfileWidget::PrettyPrintMessage(QString message) {
 }
 
 void ProfileWidget::ResetFaucetTimer() {
-    faucetTimer->setInterval(180*1000);
+    faucetTimer->setInterval(faucetClaimTime*1000);
     faucetTimer->start();
     ui->faucetPushButton->setDisabled(true);
 }
@@ -240,20 +427,11 @@ void ProfileWidget::on_faucetPushButton_clicked() {
     MainWindow* win = (MainWindow*)topLevelWidget();
     Profile* profile = win->GetProfileManager().GetProfile(profile_username);
 
-    QString userinfores = win->GetRestAPI().GetOwnUserInfo(*profile);
-    QJsonDocument jsonRes = QJsonDocument::fromJson(userinfores.toLocal8Bit());
-    QJsonObject jsonObj = jsonRes.object();
-    QJsonObject userObj = jsonObj["user"].toObject();
-    double balance = floor(userObj["balance"].toDouble());
+    //QNetworkReply* reply = restAPI.GetOwnUserInfo(*profile);
 
-    if(balance < 1) {
-        FaucetDialog* faucet = new FaucetDialog(this);
-        faucet->show();
-    } else {
-        QMessageBox msgBox;
-        msgBox.setText("Your balance must be 0 to use the faucet.");
-        msgBox.exec();
-    }
+    //FaucetDialog* faucet = new FaucetDialog(this);
+    faucet->Refresh();
+    faucet->show();
 }
 
 void ProfileWidget::on_updateButton_clicked() {
@@ -312,47 +490,10 @@ void ProfileWidget::on_rollPushButton_clicked()
 {
     MainWindow* win = (MainWindow*)topLevelWidget();
     Profile* profile = win->GetProfileManager().GetProfile(profile_username);
-    QString res = win->GetRestAPI().Bet(*profile,
+    QNetworkReply* reply = restAPI.Bet(*profile,
                           ui->highorlowComboBox->currentText().toLower() == "high",
                           ui->targetDoubleSpinBox->value(),
                           (uint64_t)(ui->wagerLine->text().toDouble()*1e8));
- /*
-    "{"bet":{"id":6942729536,"player":"PaidBack","player_id":"273890",
-            "amount":0,"target":50.49,"profit":0,"win":false,"condition":">",
-        "roll":20.36,"nonce":4003,"client":"`","multiplier":2,
-        "timestamp":"2015-10-06T14:02:15.502Z","jackpot":false,
-        "server":"6c05cb0b7d454130602b03bce6625738ea049c278009efa44a2b693621ccba15","revealed":false}
-*/
-    QJsonDocument jsonBetRes = QJsonDocument::fromJson(res.toLocal8Bit());
-    QJsonObject jsonBetObj = jsonBetRes.object();
-    jsonBetObj = jsonBetObj["bet"].toObject();
-    bool won = jsonBetObj["win"].toBool();
-
-    QString msg =  "Wagered " + QString::number(jsonBetObj["amount"].toDouble()/1e8, 'f', 8) + " on " +
-            jsonBetObj["condition"].toString() +
-            QString::number(jsonBetObj["target"].toDouble(), 'f', 2) + " " +
-            QString::number(jsonBetObj["roll"].toDouble(), 'f', 2) + " and ";
-    if(won)
-        msg += "won " + QString::number(round(jsonBetObj["profit"].toDouble())/1e8, 'f', 8);
-     else
-        msg += "lost -" + QString::number(round(jsonBetObj["amount"].toDouble())/1e8, 'f', 8);
-
-    for(int i = 0; i < ui->consoleTab->count(); i++) {
-        if(ui->consoleTab->tabBar()->tabText(i) != "Console")
-            continue;
-
-        ConsoleWidget* console = (ConsoleWidget*)ui->consoleTab->widget(i);
-        console->GetUi()->consoleOutput->moveCursor(QTextCursor::End);
-        console->GetUi()->consoleOutput->append(msg);
-    }
-
-    res = win->GetRestAPI().GetOwnUserInfo(*profile);
-    QJsonDocument jsonRes = QJsonDocument::fromJson(res.toLocal8Bit());
-    QJsonObject jsonObj = jsonRes.object();
-
-    QJsonObject userObj = jsonObj["user"].toObject();
-    double balance = floor(userObj["balance"].toDouble())/1e8;
-    ui->balanceLine->setText(QString::number(balance, 'f', 8));
 }
 
 void ProfileWidget::on_minPushButton_clicked()
@@ -392,17 +533,63 @@ void ProfileWidget::on_doubleBetPushButton_clicked()
 
 void ProfileWidget::on_startPushButton_clicked()
 {
-    QString preBetScript = ui->preBetScriptList->currentItem()->text();
-    QString postBetScript = ui->postBetScriptList->currentItem()->text();
-    QString targetSelectionScript = ui->targetScriptList->currentItem()->text();
+    QString preBetScript;
+    QString postBetScript;
+    QString targetSelectionScript;
 
-    if(preBetScript == "" || postBetScript == "" ||
+    if(ui->preBetScriptList->currentItem() != nullptr)
+        preBetScript = ui->preBetScriptList->currentItem()->text();
+
+    if(ui->postBetScriptList->currentItem() != nullptr)
+        postBetScript = ui->postBetScriptList->currentItem()->text();
+
+    if(ui->targetScriptList->currentItem() != nullptr)
+        targetSelectionScript = ui->targetScriptList->currentItem()->text();
+
+    if((preBetScript == "" && postBetScript == "") ||
             targetSelectionScript == "") {
+        //return;
+    }
+
+    QString preBetSource;
+    QString postBetSource;
+    QString targetSelectionSource;
+
+    MainWindow* win = (MainWindow*)topLevelWidget();
+    if(preBetScript != "") {
+        QFile filePreBet(win->GetScriptDir()+ "/prebet/" + preBetScript);
+        if(filePreBet.open(QFile::ReadOnly|QFile::Text)) {
+            QTextStream in(&filePreBet);
+            preBetSource = in.readAll();
+        }
+    }
+
+    QJSValue res = scriptEngine->evaluate(preBetSource);
+
+    if (res.isError()) {
+        qWarning() << "eval error:" << res.toString();
         return;
     }
 
-    // TODO
+    if (!scriptEngine->globalObject().hasProperty("main")) {
+        qWarning() << "Script has no \"main\" function";
+        return;
+    }
+
+    if (!scriptEngine->globalObject().property("main").isCallable()) {
+        qWarning() << "\"main\" property of script is not callable";
+        return;
+    }
+
+    QJSValueList args;
+    args << 1;
+    QJSValue callres = scriptEngine->globalObject().property("main").call(args);
+    if (callres.isError()) {
+        qWarning() << "Error calling \"main\" function:" << callres.toString();
+    }
+    qWarning() << callres.toNumber();
 }
+
 void ProfileWidget::updateFaucetRemainingTimer() {
     if(faucetTimer->remainingTime() > 0) {
         ui->faucetPushButton->setText("Faucet (" +

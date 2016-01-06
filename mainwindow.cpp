@@ -91,5 +91,9 @@ void MainWindow::on_tabWidget_tabCloseRequested(int index) {
     auto profile = profileManager.GetProfile(ui->tabWidget->tabText(index));
     profile->isLoaded = false;
 
+    ProfileWidget* widget = (ProfileWidget*)ui->tabWidget->widget(index);
+    widget->GetSio().Disconnect();
     ui->tabWidget->removeTab(index);
+
+    //delete widget;
 }

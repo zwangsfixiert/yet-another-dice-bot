@@ -6,11 +6,16 @@
 #include "profilewidget.hpp"
 #include "ui_profilewidget.h"
 
+#include "primedice.hpp"
+
 BetInfoFrame::BetInfoFrame(QWidget *parent) :
         QFrame(parent, Qt::Tool|Qt::Window|Qt::FramelessWindowHint),
         ui(new Ui::BetInfoFrame)
 {
     ui->setupUi(this);
+
+    //ProfileWidget* profileWidget = (ProfileWidget*)parent;
+    //connect(&profileWidget->GetRestAPI(), SIGNAL(BetInfoHandler(QNetworkReply*)), this, SLOT(onBetInfo(QNetworkReply*)));
 }
 
 BetInfoFrame::~BetInfoFrame() {
@@ -25,8 +30,10 @@ void BetInfoFrame::Display(QString betId) {
     ProfileWidget* profileWidget = (ProfileWidget*)win->GetUi()->tabWidget->currentWidget();
     QString profilename = profileWidget->GetUi()->usernameEdit->text();
     Profile* profile = win->GetProfileManager().GetProfile(profilename);
-    QString res = win->GetRestAPI().GetBetInfo(*profile, betId);
+    QNetworkReply* reply = profileWidget->GetRestAPI().GetBetInfo(*profile, betId);
+}
 
+void BetInfoFrame::onBetInfo(QNetworkReply* reply) {
     /*
      "{"bet":{
         "target":99.98,"player_id":529361,
@@ -37,7 +44,7 @@ void BetInfoFrame::Display(QString betId) {
         "timestamp":"Tue Oct 13 2015 03:50:55 GMT+0000 (UTC)",
         "amount":636,"win":0}}"
        */
-
+    QString res = reply->readAll();
     QJsonDocument jsonRes = QJsonDocument::fromJson(res.toLocal8Bit());
     QJsonObject jsonObj = jsonRes.object();
     QJsonObject betObj = jsonObj["bet"].toObject();
@@ -58,9 +65,9 @@ void BetInfoFrame::Display(QString betId) {
     ui->wager->setText(wager);
     ui->profit->setText(profit);
     ui->serverSeedHash->setText(serverHash);
-    ui->multiplier->setText(multiplier + "x");
+    ui->multiplier->setText(multiplier + "X");
 
-    QRect topLevelGeom = win->geometry();
+    QRect topLevelGeom = ((MainWindow*)parentWidget()->topLevelWidget())->geometry();
     QSize size = this->size();
     setGeometry(topLevelGeom.center().x()-size.width()/2,
                           topLevelGeom.center().y()-size.height()/2,

@@ -36,16 +36,16 @@ void UserMenuFrame::Display(QString username) {
     } else if(username == ui->userLabel->text()) {
         qDebug() << "user same" << topLevelGeom;
 
-        ui->userLabel->setText("");
         hide();
+        ui->userLabel->setText("");
     } else if(username != ui->userLabel->text()) {
         qDebug() << "user changed" << topLevelGeom;
 
+        show();
         ui->userLabel->setText(username);
         setGeometry(topLevelGeom.center().x()-size.width()/2,
                     topLevelGeom.center().y()-size.height()/2,
                     size.width(), size.height());
-        show();
     }
 }
 

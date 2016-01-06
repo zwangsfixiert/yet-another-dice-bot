@@ -2,6 +2,7 @@
 #define USERINFOFRAME_HPP
 
 #include <QFrame>
+#include <QNetworkReply>
 
 namespace Ui {
 class UserInfoFrame;
@@ -20,6 +21,7 @@ public:
 
 private slots:
     void on_closeButton_clicked();
+    //void onUserInfo(QNetworkReply* reply);
 
 private:
     Ui::UserInfoFrame *ui;

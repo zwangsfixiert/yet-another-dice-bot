@@ -2,6 +2,14 @@
 <ui version="4.0">
  <class>UserInfoFrame</class>
  <widget class="QFrame" name="UserInfoFrame">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>346</width>
+    <height>287</height>
+   </rect>
+  </property>
   <property name="windowTitle">
    <string>Frame</string>
   </property>
@@ -12,120 +20,48 @@
    <enum>QFrame::Raised</enum>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="5" column="0">
-    <widget class="QLabel" name="winsLabel">
-     <property name="text">
-      <string>Wins</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="4">
-    <widget class="QLabel" name="totalProfit">
-     <property name="text">
-      <string>0.00000000</string>
-     </property>
-    </widget>
-   </item>
-   <item row="8" column="0">
-    <widget class="QLabel" name="powerLevelLabel">
-     <property name="text">
-      <string>Power Level</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-    </widget>
-   </item>
-   <item row="8" column="4">
-    <widget class="QLabel" name="powerLevel">
-     <property name="text">
-      <string>0.0</string>
-     </property>
-    </widget>
-   </item>
-   <item row="7" column="4">
-    <widget class="QLabel" name="luck">
-     <property name="text">
-      <string>0.00%</string>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="4">
-    <widget class="QLabel" name="totalBets">
-     <property name="text">
-      <string>0</string>
-     </property>
-    </widget>
-   </item>
-   <item row="7" column="0">
-    <widget class="QLabel" name="luckLabel">
-     <property name="text">
-      <string>Luck</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="4">
-    <widget class="QLabel" name="chatMessages">
-     <property name="text">
-      <string>0</string>
-     </property>
-    </widget>
-   </item>
-   <item row="0" column="2" alignment="Qt::AlignHCenter">
-    <widget class="QLabel" name="userinfoLabel">
-     <property name="text">
-      <string>Userinfo</string>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="4">
-    <widget class="QLabel" name="totalWagered">
-     <property name="text">
-      <string>0.00000000</string>
-     </property>
-    </widget>
-   </item>
-   <item row="6" column="4">
+   <item row="9" column="2">
     <widget class="QLabel" name="losses">
      <property name="text">
       <string>0</string>
      </property>
     </widget>
    </item>
-   <item row="2" column="0">
-    <widget class="QLabel" name="totalProfitLabal">
-     <property name="text">
-      <string>Total Profit</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-    </widget>
-   </item>
-   <item row="5" column="4">
+   <item row="8" column="2">
     <widget class="QLabel" name="wins">
      <property name="text">
       <string>0</string>
      </property>
     </widget>
    </item>
-   <item row="4" column="0">
-    <widget class="QLabel" name="chatMessageLabel">
+   <item row="2" column="2">
+    <widget class="QLabel" name="totalWagered">
      <property name="text">
-      <string>Chat Messages</string>
+      <string>0.00000000</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="2" alignment="Qt::AlignLeft">
+    <widget class="QLabel" name="totalProfit">
+     <property name="text">
+      <string>0.00000000</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
      </property>
     </widget>
    </item>
-   <item row="6" column="0">
+   <item row="1" column="1" alignment="Qt::AlignHCenter">
+    <widget class="QLabel" name="userinfoLabel">
+     <property name="text">
+      <string>Userinfo</string>
+     </property>
+    </widget>
+   </item>
+   <item row="9" column="0">
     <widget class="QLabel" name="lossesLabel">
      <property name="text">
       <string>Losses</string>
@@ -135,7 +71,34 @@
      </property>
     </widget>
    </item>
-   <item row="1" column="0">
+   <item row="10" column="2">
+    <widget class="QLabel" name="luck">
+     <property name="text">
+      <string>0.00%</string>
+     </property>
+    </widget>
+   </item>
+   <item row="10" column="0">
+    <widget class="QLabel" name="luckLabel">
+     <property name="text">
+      <string>Luck</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="8" column="0">
+    <widget class="QLabel" name="winsLabel">
+     <property name="text">
+      <string>Wins</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0">
     <widget class="QLabel" name="totalWageredLabel">
      <property name="text">
       <string>Total Wagered</string>
@@ -145,7 +108,17 @@
      </property>
     </widget>
    </item>
-   <item row="3" column="0">
+   <item row="4" column="0">
+    <widget class="QLabel" name="totalProfitLabal">
+     <property name="text">
+      <string>Total Profit</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="0">
     <widget class="QLabel" name="totalBetsLabel">
      <property name="text">
       <string>Total Bets</string>
@@ -155,7 +128,34 @@
      </property>
     </widget>
    </item>
-   <item row="9" column="2">
+   <item row="5" column="2" alignment="Qt::AlignLeft">
+    <widget class="QLabel" name="totalBets">
+     <property name="text">
+      <string>0</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="0">
+    <widget class="QLabel" name="chatMessageLabel">
+     <property name="text">
+      <string>Chat Messages</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="2">
+    <widget class="QLabel" name="chatMessages">
+     <property name="text">
+      <string>0</string>
+     </property>
+    </widget>
+   </item>
+   <item row="11" column="1">
     <widget class="QPushButton" name="closeButton">
      <property name="text">
       <string>Close</string>

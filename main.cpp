@@ -1,8 +1,8 @@
-#include "mainwindow.hpp"
 #include <QApplication>
 
-int main(int argc, char *argv[])
-{
+#include "mainwindow.hpp"
+
+int main(int argc, char *argv[]) {
     QCoreApplication::setOrganizationName("Sigma Squared");
     QCoreApplication::setApplicationName("Yet Another Dice Bot");
 

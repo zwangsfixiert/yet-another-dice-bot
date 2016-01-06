@@ -2,6 +2,7 @@
 #define BETINFOFRAME_HPP
 
 #include <QFrame>
+#include <QNetworkReply>
 
 namespace Ui {
 class BetInfoFrame;
@@ -20,6 +21,7 @@ public:
 
 private slots:
     void on_closeButton_clicked();
+    void onBetInfo(QNetworkReply* reply);
 
 private:
     Ui::BetInfoFrame *ui;
